@@ -14,7 +14,7 @@ PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
 PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
 
 # --- SCRIPT SETTINGS ---
-CHECK_INTERVAL_SECONDS = 7
+CHECK_INTERVAL_SECONDS = 5
 MAX_CONSECUTIVE_FAILURES = 3
 # Set to False to see the browser window, or True to run in the background.
 HEADLESS_MODE = True

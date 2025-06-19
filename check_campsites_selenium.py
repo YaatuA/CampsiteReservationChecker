@@ -1,7 +1,13 @@
 import time
 import requests
 import os
+import asyncio
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+
+# --- FastAPI Imports ---
+from fastapi import FastAPI
+import uvicorn
 
 # --- SELENIUM IMPORTS ---
 from selenium import webdriver
@@ -112,31 +118,51 @@ def check_availability():
         # Ensure the browser is always closed to prevent resource leaks.
         driver.quit()
 
-if __name__ == "__main__":
-    print("--- Starting Campsite Availability Checker (Selenium Version) ---")
-    print(f"To stop, press Ctrl+C")
-    
+async def background_checker_task():
+    """The background task that runs the main checker loop."""
     consecutive_failures = 0
     while True:
-        try:
-            status = check_availability()
-            if status == 'FAILURE':
-                consecutive_failures += 1
-                print(f"!!! Failure count: {consecutive_failures}/{MAX_CONSECUTIVE_FAILURES}")
-                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                    print(f"!!! Reached {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping script.")
-                    failure_message = f"Campsite script stopped after {MAX_CONSECUTIVE_FAILURES} failed attempts."
-                    send_pushover_notification(failure_message, title="Campsite Script Error")
-                    break
-            else:
-                consecutive_failures = 0
+        print("--- Starting availability check... ---")
+        status = check_availability()
+        
+        if status == 'FAILURE':
+            consecutive_failures += 1
+            print(f"!!! Failure count: {consecutive_failures}/{MAX_CONSECUTIVE_FAILURES}")
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                print(f"!!! Reached {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping background task.")
+                failure_message = f"Campsite script stopped after {MAX_CONSECUTIVE_FAILURES} failed attempts."
+                send_pushover_notification(failure_message, title="Campsite Script Error")
+                break # Exit the loop and stop the background task
+        else:
+            consecutive_failures = 0
 
-            if status == 'SUCCESS_FOUND':
-                notification_message = "A site may be available for your selected dates! Go book it now!"
-                send_pushover_notification(notification_message)
+        if status == 'SUCCESS_FOUND':
+            notification_message = "A site may be available for your selected dates! Go book it now!"
+            send_pushover_notification(notification_message)
 
-            print(f"--- Waiting for {CHECK_INTERVAL_SECONDS} seconds before the next check...")
-            time.sleep(CHECK_INTERVAL_SECONDS)
-        except KeyboardInterrupt:
-            print("\n--- Script stopped by user. ---")
-            break
+        print(f"--- Check complete. Waiting for {CHECK_INTERVAL_SECONDS} seconds... ---")
+        await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This code runs on startup
+    print("Application startup: Starting background checker task.")
+    asyncio.create_task(background_checker_task())
+    yield
+    # This code runs on shutdown
+    print("Application shutdown.")
+
+# Create the FastAPI app with the lifespan event handler
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+def root():
+    """A simple endpoint to prove the server is running."""
+    return {"status": "Campsite checker is running in the background."}
+
+
+if __name__ == "__main__":
+    # This part is for running locally
+    print("Starting Uvicorn server for local testing...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

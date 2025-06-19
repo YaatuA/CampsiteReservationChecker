@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 # --- FastAPI Imports ---
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import uvicorn
 
 # --- SELENIUM IMPORTS ---
@@ -156,10 +157,10 @@ async def lifespan(app: FastAPI):
 # Create the FastAPI app with the lifespan event handler
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    """A simple endpoint to prove the server is running."""
-    return {"status": "Campsite checker is running in the background."}
+    """A simple endpoint to prove the server is running and for health checks."""
+    return JSONResponse(content={"status": "Campsaite checker is running."})
 
 
 if __name__ == "__main__":
